@@ -1,0 +1,23 @@
+# Local Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Datasets are intentionally excluded from this repository
+data/
+yolo_dataset/
+datasets/
+prepared_dataset.yaml
+*.zip
+
+# Generated training output and local logs
+/runs/
+*.log
+*.pid
+
+# Editor and OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db
