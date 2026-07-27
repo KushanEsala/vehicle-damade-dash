@@ -33,6 +33,9 @@ pip install -r requirements.txt
 
 Open <http://localhost:8501> if the browser does not open automatically.
 
+For model verification, RTX setup, and troubleshooting close-up images, see
+[SETUP_AND_TROUBLESHOOTING.md](SETUP_AND_TROUBLESHOOTING.md).
+
 ## Included trained artifacts
 
 The dashboard loads:
@@ -62,4 +65,3 @@ segmentation dataset in `data/` or `yolo_dataset/`, run
 
 This is a prototype decision-support tool. Predictions should be reviewed by a
 person and must not be the sole basis for repair, insurance, or safety decisions.
-
