@@ -61,6 +61,7 @@ def main() -> None:
 
     try:
         import numpy as np
+        import keyring
         import streamlit
         import torch
         import ultralytics

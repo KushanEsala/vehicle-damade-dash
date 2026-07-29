@@ -1,67 +1,169 @@
-# Vehicle Damage Dashboard
+# Vehicle Damage Insurance ERP
 
-A local Streamlit dashboard for vehicle-damage segmentation. It combines:
+A role-based insurance assessment system with a Next.js web interface, FastAPI
+backend, MySQL database, PDF reports, and the trained vehicle-damage models.
 
-- `best.pt`, the trained YOLO segmentation model for visible vehicle damage.
-- `yolov8n.pt`, a general detector used to confirm that a supported vehicle is present.
-- Saved validation metrics, plots, and prediction examples from the completed 50-epoch run.
+## Main features
 
-## Detected damage classes
+- Secure sign-in for administrators, operators, and registered customers
+- Customer, vehicle, insurance-plan, company, and user management
+- New vehicle-damage assessments with editable findings and costing
+- Reanalysis with adjustable damage and vehicle confidence thresholds
+- Separate assessment review and finalized report pages
+- Marked damage images and downloadable PDF reports
+- Customer access restricted to their own vehicles and reports
+- Optional server-side Gemini visual cross-check
 
-- Scratch
-- Dent
-- Tear
-- Missing part
-- Broken lamp
-- Puncture
-- Broken glass
+The trained damage classes are `scratch`, `dent`, `tear`, `missing_part`,
+`broken_lamp`, `puncture`, and `broken_glass`.
 
-## Quick start on Windows
+## Included models
 
-Python 3.11 is recommended.
+The required model files are committed with the project:
+
+```text
+Runscomplete/runs/vehicle_damage_seg-2/weights/best.pt
+yolov8n.pt
+```
+
+Training datasets are intentionally excluded.
+
+## Requirements
+
+- Windows 10 or 11
+- Python 3.11
+- Node.js 20 or newer, including npm
+- MySQL or MariaDB through XAMPP/phpMyAdmin
+- Git
+
+The application works on CPU. A supported CUDA-enabled NVIDIA GPU is optional
+and can speed up local model inference.
+
+## First-time setup
+
+Open PowerShell in the folder where you want the project:
 
 ```powershell
 git clone https://github.com/KushanEsala/vehicle-damade-dash.git
 cd vehicle-damade-dash
-py -3.11 -m venv .venv
 Set-ExecutionPolicy -Scope Process Bypass
+py -3.11 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
-.\start_model_tester.ps1
+cd frontend
+npm install
+cd ..
 ```
 
-Open <http://localhost:8501> if the browser does not open automatically.
+If `py -3.11` is unavailable, install Python 3.11 first and make sure the
+Python launcher is enabled.
 
-For model verification, RTX setup, and troubleshooting close-up images, see
-[SETUP_AND_TROUBLESHOOTING.md](SETUP_AND_TROUBLESHOOTING.md).
+## Database setup
 
-## Included trained artifacts
+1. Start Apache and MySQL from XAMPP.
+2. Open phpMyAdmin.
+3. Import `scripts/schema_vehicle_analyzis.sql`. It creates and selects the
+   `Vehicle_Analyzis` database.
+4. Create the local configuration:
 
-The dashboard loads:
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Set `MYSQL_USER` and `MYSQL_PASSWORD` to a MySQL account that has access to
+`Vehicle_Analyzis`. The `.env` file is ignored by Git.
+
+For a local development account, run this in phpMyAdmin's SQL tab and use the
+same password in `.env`:
+
+```sql
+CREATE USER IF NOT EXISTS 'vehicle_erp_app'@'localhost'
+IDENTIFIED BY 'choose-a-strong-local-password';
+GRANT ALL PRIVILEGES ON Vehicle_Analyzis.* TO 'vehicle_erp_app'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+The backend can fall back to a local SQLite database in development if MySQL is
+unavailable. Use MySQL for the shared/base project so all records remain in the
+intended database.
+
+## Optional visual cross-check
+
+The application can send only the inspection image to Gemini from the backend
+to refine damage labels, parts, and masks. The API key must be installed
+separately on every computer and is never committed.
+
+Follow [README_SECRET.md](README_SECRET.md). The application continues with the
+local YOLO models when this optional service is not configured or unavailable.
+
+## Verify and start
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python verify_setup.py
+.\.venv\Scripts\python.exe -m pytest -q
+cd frontend
+npm run build
+cd ..
+.\start_web_app.ps1
+```
+
+Open:
+
+- Web application: <http://localhost:3000>
+- Backend health check: <http://localhost:8000/api/health>
+
+Initial administrator:
 
 ```text
-Runscomplete/runs/vehicle_damage_seg-2/weights/best.pt
+Username: admin
+Password: Admin@123456
 ```
 
-The completed run also includes `last.pt`, `results.csv`, validation predictions,
-precision/recall curves, and confusion matrices. The best saved validation row
-was epoch 44:
+Change the password after the first sign-in. Customers cannot self-register;
+an administrator or operator must create the customer account.
 
-| Metric | Value |
-|---|---:|
-| Mask precision | 53.78% |
-| Mask recall | 40.57% |
-| Mask mAP50 | 41.20% |
-| Mask mAP50-95 | 22.15% |
-| Box mAP50 | 44.80% |
-| Box mAP50-95 | 27.58% |
+## Updating an existing clone
 
-## Dataset policy
+Commit or save any work on the cloned computer before pulling. Then run:
 
-Training datasets are intentionally not committed. To retrain, place a YOLO
-segmentation dataset in `data/` or `yolo_dataset/`, run
-`python prepare_dataset.py`, and then use `train.py`.
+```powershell
+cd "D:\FinalProject 2026\vehicle_damade_dash_cloned"
+git status
+git pull origin main
+Set-ExecutionPolicy -Scope Process Bypass
 
-This is a prototype decision-support tool. Predictions should be reviewed by a
-person and must not be the sole basis for repair, insurance, or safety decisions.
+if (-not (Test-Path .\.venv\Scripts\python.exe)) {
+    py -3.11 -m venv .venv
+}
+
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+pip install -r requirements.txt
+cd frontend
+npm install
+cd ..
+python verify_setup.py
+.\start_web_app.ps1
+```
+
+If the visual cross-check has not been configured on that computer, run
+`.\configure_vision.ps1` once after installing the requirements.
+
+## Troubleshooting
+
+- Full web setup: [WEB_APP_SETUP.md](WEB_APP_SETUP.md)
+- Model and environment checks:
+  [SETUP_AND_TROUBLESHOOTING.md](SETUP_AND_TROUBLESHOOTING.md)
+- Visual-validation behavior:
+  [VISION_VALIDATION_SETUP.md](VISION_VALIDATION_SETUP.md)
+- Backend logs: `backend-api.log` and `backend-api-error.log`
+- Frontend logs: `frontend-web.log` and `frontend-web-error.log`
+
+Do not commit `.env`, `.venv`, datasets, uploaded customer images, generated
+reports, database files, logs, or API keys.
+
+This system provides assessment support. Every finding and cost must be
+reviewed by an authorized person before a report is finalized.

@@ -27,6 +27,7 @@ export default function NewAssessment() {
     "Checking vehicle context",
     "Locating visible damage",
     "Measuring detection confidence",
+    "Cross-checking detected regions",
     "Preparing the assessment results",
   ];
 
@@ -86,7 +87,13 @@ export default function NewAssessment() {
     const form = new FormData(event.currentTarget);
     form.set("require_vehicle", "true");
     try {
-      const result = await api<{id: number}>("/api/analyses", {method: "POST", body: form});
+      const result = await api<
+        {accepted: false; message: string} | {id: number}
+      >("/api/analyses", {method: "POST", body: form});
+      if (!("id" in result)) {
+        setMessage(result.message || "Please attach a vehicle image.");
+        return;
+      }
       router.push(`/dashboard/assessments/${result.id}`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Assessment failed.");

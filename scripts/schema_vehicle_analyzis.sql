@@ -271,6 +271,8 @@ CREATE TABLE IF NOT EXISTS `analysis_damages` (
   `confidence` DECIMAL(7,6) NULL,
   `box_json` JSON NOT NULL,
   `polygon_json` JSON NULL,
+  `model_polygon_json` JSON NULL,
+  `mask_refined` TINYINT(1) NOT NULL DEFAULT 0,
   `overlap_ratio` DECIMAL(7,6) NULL,
   `passed_vehicle_gate` TINYINT(1) NOT NULL DEFAULT 1,
   `review_status` VARCHAR(20) NOT NULL DEFAULT 'pending',
@@ -386,4 +388,4 @@ INSERT IGNORE INTO `insurance_plans` (`id`, `plan_code`, `name`, `description`, 
 
 -- Initial Admin Account: admin / Admin@123456 (Argon2id hash)
 INSERT IGNORE INTO `users` (`id`, `role_id`, `username`, `email`, `password_hash`, `must_change_password`, `is_active`) VALUES
-(1, 1, 'admin', 'admin@apexinsurance.lk', '$argon2id$v=19$m=65536,t=3,p=4$K9aYg/7qX6+h2M5U/7z5xA$B1p9Y4a3v0H5N8z2X6c7v8b9n0m1k2l3', 0, 1);
+(1, 1, 'admin', 'admin@apexinsurance.lk', '$argon2id$v=19$m=65536,t=3,p=4$ByPB7umY8a/tPEvxfmAa3Q$OYGksqnu0MgbbFG3KCcNpFX60jZGUF1U45FZk4xQONk', 0, 1);

@@ -5,14 +5,19 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from core.constants import AnalysisStatus, ReviewStatus, SeverityLevel
-from core.exceptions import ValidationError, ResourceNotFoundError, AuthorizationError
+from core.exceptions import (
+    AuthorizationError,
+    NonVehicleImageError,
+    ResourceNotFoundError,
+    ValidationError,
+)
 from database.repositories.analysis_repository import AnalysisRepository
 from database.repositories.vehicle_repository import VehicleRepository
 from database.repositories.audit_repository import AuditRepository
 from database.models.analysis import Analysis, AnalysisVehicleDetection, AnalysisDamage, AnalysisRevision, ModelVersion
 from database.models.user import Role, User
 from ml.pipeline import get_pipeline
-from ml.types import InferenceRequest
+from ml.types import InferenceRequest, InferenceResult
 from services.costing_service import CostingService
 from services.storage_service import StorageService
 
@@ -39,6 +44,11 @@ class AnalysisService:
         )
         if not staff:
             raise AuthorizationError("An active administrator or operator account is required.")
+
+    @staticmethod
+    def _require_vehicle_image(result: InferenceResult) -> None:
+        if result.image_rejected_as_non_vehicle or not result.vehicle_confirmed:
+            raise NonVehicleImageError("Please attach a vehicle image.")
 
     def generate_analysis_number(self) -> str:
         date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -86,6 +96,7 @@ class AnalysisService:
             require_vehicle=require_vehicle_confirmation,
         )
         result = self.pipeline.run(request)
+        self._require_vehicle_image(result)
 
         # Register active model versions
         damage_meta = self.pipeline.registry.get_damage_model_metadata()
@@ -150,16 +161,26 @@ class AnalysisService:
         for d in result.accepted_damages:
             ad = AnalysisDamage(
                 analysis_id=analysis.id,
-                source="model",
-                original_damage_class=d.damage_class,
+                source=d.source,
+                original_damage_class=d.original_damage_class or d.damage_class,
                 final_damage_class=d.damage_class,
                 confidence=Decimal(str(round(d.confidence, 4))),
                 box_json=d.box.tolist(),
                 polygon_json=d.polygon.tolist() if d.polygon is not None else None,
+                model_polygon_json=d.model_polygon.tolist() if d.model_polygon is not None else None,
+                mask_refined=d.mask_refined,
                 overlap_ratio=Decimal(str(round(d.overlap_ratio, 4))),
                 passed_vehicle_gate=True,
-                review_status=ReviewStatus.ACCEPTED.value,
-                severity=SeverityLevel.MODERATE.value,
+                review_status=(
+                    ReviewStatus.CORRECTED.value
+                    if str(d.original_damage_class or d.damage_class).lower().strip()
+                    != str(d.damage_class).lower().strip()
+                    else ReviewStatus.ACCEPTED.value
+                ),
+                vehicle_part=d.vehicle_part,
+                severity=d.severity or SeverityLevel.MODERATE.value,
+                description=d.description,
+                internal_note=d.validation_note,
                 estimated_cost=Decimal("0.00"),
             )
             self.session.add(ad)
@@ -168,12 +189,14 @@ class AnalysisService:
         for d in result.rejected_damages:
             rd = AnalysisDamage(
                 analysis_id=analysis.id,
-                source="model",
-                original_damage_class=d.damage_class,
+                source=d.source,
+                original_damage_class=d.original_damage_class or d.damage_class,
                 final_damage_class=d.damage_class,
                 confidence=Decimal(str(round(d.confidence, 4))),
                 box_json=d.box.tolist(),
                 polygon_json=d.polygon.tolist() if d.polygon is not None else None,
+                model_polygon_json=d.model_polygon.tolist() if d.model_polygon is not None else None,
+                mask_refined=d.mask_refined,
                 overlap_ratio=Decimal(str(round(d.overlap_ratio, 4))),
                 passed_vehicle_gate=False,
                 review_status=ReviewStatus.REJECTED.value,
@@ -434,7 +457,10 @@ class AnalysisService:
                 damage_class=item.final_damage_class,
                 confidence=float(item.confidence or 0),
                 box=np.asarray(item.box_json, dtype=float),
+                source=item.source,
                 polygon=np.asarray(item.polygon_json, dtype=float) if item.polygon_json else None,
+                model_polygon=np.asarray(item.model_polygon_json, dtype=float) if item.model_polygon_json else None,
+                mask_refined=bool(item.mask_refined),
                 passed_vehicle_gate=True,
                 overlap_ratio=float(item.overlap_ratio or 0),
             )

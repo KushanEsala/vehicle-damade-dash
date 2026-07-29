@@ -6,7 +6,7 @@ from typing import Any
 
 from fastapi import Cookie, Depends, FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy.orm import Session, joinedload
 
 from backend.auth import (
@@ -32,7 +32,7 @@ from backend.schemas import (
     UserStatusUpdate,
     VehicleCreate,
 )
-from core.exceptions import ERPBaseException
+from core.exceptions import ERPBaseException, NonVehicleImageError
 from database.connection import engine, ensure_database_ready
 from database.models.analysis import Analysis, AnalysisDamage
 from database.models.company import CompanyInformation
@@ -310,22 +310,42 @@ async def create_analysis(
 ):
     content = await image.read()
     vehicle = owned_vehicle(db, user, vehicle_id)
-    vehicle_image = VehicleService(db).upload_vehicle_image(
+    vehicle_service = VehicleService(db)
+    vehicle_image = vehicle_service.upload_vehicle_image(
         vehicle_id=vehicle.id,
         file_bytes=content,
         filename=image.filename or "inspection.jpg",
         operator_user_id=user.id,
         category="damage",
     )
-    analysis = AnalysisService(db).run_new_analysis(
-        vehicle_id=vehicle.id,
-        source_image_id=vehicle_image.id,
-        operator_user_id=user.id,
-        image_bytes=content,
-        damage_confidence=damage_confidence,
-        vehicle_confidence=vehicle_confidence,
-        require_vehicle_confirmation=require_vehicle,
-    )
+    uploaded_storage_path = vehicle_image.storage_path
+    try:
+        analysis = AnalysisService(db).run_new_analysis(
+            vehicle_id=vehicle.id,
+            source_image_id=vehicle_image.id,
+            operator_user_id=user.id,
+            image_bytes=content,
+            damage_confidence=damage_confidence,
+            vehicle_confidence=vehicle_confidence,
+            require_vehicle_confirmation=require_vehicle,
+        )
+    except NonVehicleImageError as exc:
+        # A valid upload that is not a vehicle is an expected assessment
+        # outcome, not a malformed HTTP request. Roll back the pending image
+        # record, remove its file, and return a normal response the UI can show
+        # without producing a browser-level 400 error.
+        db.rollback()
+        vehicle_service.storage.delete_file(uploaded_storage_path)
+        return JSONResponse(
+            status_code=200,
+            content={"accepted": False, "message": str(exc)},
+        )
+    except Exception:
+        # The database transaction is rolled back by the request dependency.
+        # Remove the newly written file as well so rejected non-vehicle uploads
+        # do not remain in vehicle storage.
+        vehicle_service.storage.delete_file(uploaded_storage_path)
+        raise
     return analysis_payload(analysis)
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from typing import Generator
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 
 from core.config import get_settings
@@ -56,9 +56,31 @@ def init_db() -> None:
     Base.metadata.create_all(bind=engine)
 
 
+def ensure_incremental_schema() -> None:
+    """Apply small additive changes for existing local/MySQL installations."""
+    inspector = inspect(engine)
+    if "analysis_damages" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("analysis_damages")}
+    if "model_polygon_json" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text("ALTER TABLE analysis_damages ADD COLUMN model_polygon_json JSON NULL")
+            )
+    if "mask_refined" not in columns:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "ALTER TABLE analysis_damages "
+                    "ADD COLUMN mask_refined BOOLEAN NOT NULL DEFAULT FALSE"
+                )
+            )
+
+
 def ensure_database_ready() -> None:
     """Ensures database tables are created and bootstrapped with initial seed data."""
     init_db()
+    ensure_incremental_schema()
     with SessionLocal() as session:
         try:
             from database.models.user import Role, User

@@ -39,6 +39,10 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
     if (!path.startsWith("/api/auth/")) notify({type: "error", message});
     throw new Error(message);
   }
+  if (data && data.accepted === false) {
+    notify({type: "error", message: data.message || "The image was not accepted."});
+    return data as T;
+  }
   if (method !== "GET" && !path.endsWith("/login") && !path.endsWith("/logout")) {
     notify({type: "success", message: mutationMessage(path, method)});
   }

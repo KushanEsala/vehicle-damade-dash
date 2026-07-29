@@ -41,6 +41,10 @@ class ValidationError(ERPBaseException):
     """Raised when input validation fails."""
 
 
+class NonVehicleImageError(ValidationError):
+    """Raised when an uploaded assessment image is not a motor vehicle."""
+
+
 class ModelInferenceError(ERPBaseException):
     """Raised when model inference or file loading fails."""
 

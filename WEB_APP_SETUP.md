@@ -61,6 +61,13 @@ npm run build
 
 The former Streamlit application remains in the repository as a rollback option and is not required by the new interface.
 
+## Optional visual cross-check
+
+The FastAPI backend can use Gemini as a conservative second opinion after the
+local YOLO models run. Follow [VISION_VALIDATION_SETUP.md](VISION_VALIDATION_SETUP.md)
+to save the credential in Windows Credential Manager without placing it in the
+repository, `.env`, frontend, database or browser.
+
 ## Damage reports
 
 Each finalized assessment creates a separate report page. The page displays the marked vehicle image, accepted damage items, confidence, descriptions, individual costs and the total estimate. The PDF can be viewed inside the page, opened in a separate browser tab, or downloaded.

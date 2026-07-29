@@ -33,3 +33,6 @@ vehicle_analyzis.db
 !reports/
 !reports/*.py
 *.db
+*.db-journal
+*.db-shm
+*.db-wal

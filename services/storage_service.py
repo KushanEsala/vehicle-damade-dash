@@ -94,3 +94,15 @@ class StorageService:
 
     def get_absolute_path(self, relative_path: str) -> Path:
         return self.root / Path(relative_path)
+
+    def delete_file(self, relative_path: str) -> None:
+        """Delete one explicitly identified storage file after a failed transaction."""
+        root = self.root.resolve()
+        target = (root / Path(relative_path)).resolve()
+        if target == root or root not in target.parents:
+            raise StorageError("Refusing to delete a file outside application storage.")
+        if target.is_file():
+            try:
+                target.unlink()
+            except Exception as exc:
+                raise StorageError(f"Failed to remove incomplete upload: {exc}") from exc

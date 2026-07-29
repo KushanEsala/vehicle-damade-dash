@@ -95,6 +95,8 @@ class AnalysisDamage(Base):
     confidence: Mapped[Decimal | None] = mapped_column(SQLDecimal(7, 6), nullable=True)
     box_json: Mapped[Any] = mapped_column(JSON, nullable=False)
     polygon_json: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    model_polygon_json: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    mask_refined: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     overlap_ratio: Mapped[Decimal | None] = mapped_column(SQLDecimal(7, 6), nullable=True)
     passed_vehicle_gate: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     review_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
