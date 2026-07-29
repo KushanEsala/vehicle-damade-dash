@@ -21,3 +21,10 @@ prepared_dataset.yaml
 .vscode/
 .DS_Store
 Thumbs.db
+
+# Secrets & Local database / storage
+.env
+storage/
+vehicle_analyzis.db
+reports/
+*.db

@@ -1,0 +1,2 @@
+.venv\Scripts\activate.bat
+python -m streamlit run model_tester.py --server.port 8502

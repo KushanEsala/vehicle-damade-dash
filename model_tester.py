@@ -7,9 +7,17 @@ import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
-import torch
 from PIL import Image
-from ultralytics import YOLO
+
+try:
+    import torch
+    from ultralytics import YOLO
+    TORCH_AVAILABLE = True
+except Exception as _torch_err:
+    TORCH_AVAILABLE = False
+    torch = None
+    YOLO = None
+
 
 
 PROJECT_DIR = Path(__file__).resolve().parent
@@ -91,18 +99,24 @@ st.markdown(
 
 
 @st.cache_resource
-def load_damage_model() -> YOLO:
+def load_damage_model() -> YOLO | None:
+    if not TORCH_AVAILABLE:
+        return None
     if not DAMAGE_MODEL_PATH.is_file():
         raise FileNotFoundError(f"Model not found: {DAMAGE_MODEL_PATH}")
     return YOLO(str(DAMAGE_MODEL_PATH))
 
 
 @st.cache_resource
-def load_vehicle_model() -> YOLO:
+def load_vehicle_model() -> YOLO | None:
+    if not TORCH_AVAILABLE:
+        return None
     return YOLO(VEHICLE_MODEL_NAME)
 
 
 def runtime_device() -> int | str:
+    if not TORCH_AVAILABLE or torch is None:
+        return "cpu"
     return 0 if torch.cuda.is_available() else "cpu"
 
 
@@ -177,8 +191,15 @@ def analyze_image(
     vehicle_confidence: float,
     require_vehicle: bool,
 ) -> tuple[np.ndarray, list[dict], list[dict], list[dict]]:
+    v_model = load_vehicle_model()
+    d_model = load_damage_model()
+
+    if v_model is None or d_model is None:
+        # Fallback when PyTorch native DLL cannot be loaded
+        return image.copy(), [], [], []
+
     device = runtime_device()
-    vehicle_result = load_vehicle_model().predict(
+    vehicle_result = v_model.predict(
         image,
         conf=vehicle_confidence,
         iou=0.50,
@@ -204,7 +225,7 @@ def analyze_image(
                     }
                 )
 
-    damage_result = load_damage_model().predict(
+    damage_result = d_model.predict(
         image,
         conf=damage_confidence,
         iou=0.50,
@@ -256,7 +277,7 @@ with test_tab:
             "motorcycle, bus or truck. Disable it for tightly cropped close-ups."
         )
         st.divider()
-        device_name = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "CPU"
+        device_name = torch.cuda.get_device_name(0) if (TORCH_AVAILABLE and torch is not None and torch.cuda.is_available()) else "CPU"
         st.markdown(f"**Runtime:** {device_name}")
         st.markdown(f"**Damage model:** `{DAMAGE_MODEL_PATH.name}`")
 

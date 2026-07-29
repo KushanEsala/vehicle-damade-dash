@@ -1,0 +1,1 @@
+"""Database repositories abstraction layer."""
