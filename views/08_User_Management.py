@@ -17,7 +17,10 @@ from ui.layout import render_page_header
 
 render_page_header("User Account Management", "Manage system administrators, operators, and customer accounts", "ADMINISTRATION", allowed_roles=["admin"])
 
-admin_id = st.session_state.get("user_id") or 1
+admin_id = st.session_state.get("user_id")
+if not admin_id:
+    st.error("A valid signed-in administrator is required.")
+    st.stop()
 
 tab_list, tab_create = st.tabs(["System User Accounts", "Create Staff User"])
 

@@ -9,7 +9,8 @@ from core.exceptions import ValidationError, ResourceNotFoundError, Authorizatio
 from database.repositories.analysis_repository import AnalysisRepository
 from database.repositories.vehicle_repository import VehicleRepository
 from database.repositories.audit_repository import AuditRepository
-from database.models.analysis import Analysis, AnalysisVehicleDetection, AnalysisDamage, ModelVersion
+from database.models.analysis import Analysis, AnalysisVehicleDetection, AnalysisDamage, AnalysisRevision, ModelVersion
+from database.models.user import Role, User
 from ml.pipeline import get_pipeline
 from ml.types import InferenceRequest
 from services.costing_service import CostingService
@@ -24,6 +25,20 @@ class AnalysisService:
         self.audit_repo = AuditRepository(session)
         self.pipeline = get_pipeline()
         self.storage = StorageService()
+
+    def _require_staff(self, user_id: int) -> None:
+        staff = (
+            self.session.query(User)
+            .join(User.role)
+            .filter(
+                User.id == user_id,
+                User.is_active.is_(True),
+                Role.code.in_(("admin", "operator")),
+            )
+            .first()
+        )
+        if not staff:
+            raise AuthorizationError("An active administrator or operator account is required.")
 
     def generate_analysis_number(self) -> str:
         date_str = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -41,15 +56,26 @@ class AnalysisService:
         require_vehicle_confirmation: bool = True,
     ) -> Analysis:
         from io import BytesIO
-        from PIL import Image
+        from PIL import Image, ImageOps
         import numpy as np
 
+        self._require_staff(operator_user_id)
         vehicle = self.vehicle_repo.get_by_id(vehicle_id)
         if not vehicle:
             raise ResourceNotFoundError(f"Vehicle #{vehicle_id} not found.")
 
         # Decode image array
-        pil_img = Image.open(BytesIO(image_bytes)).convert("RGB")
+        try:
+            pil_img = Image.open(BytesIO(image_bytes))
+            pil_img = ImageOps.exif_transpose(pil_img).convert("RGB")
+            if pil_img.width < 160 or pil_img.height < 160:
+                raise ValidationError("Inspection images must be at least 160 × 160 pixels.")
+            if pil_img.width * pil_img.height > 40_000_000:
+                raise ValidationError("Inspection image dimensions are too large.")
+        except ValidationError:
+            raise
+        except Exception as exc:
+            raise ValidationError(f"The uploaded inspection image could not be decoded: {exc}") from exc
         image_rgb = np.asarray(pil_img)
 
         # Run inference pipeline
@@ -169,6 +195,7 @@ class AnalysisService:
         return analysis
 
     def override_vehicle_confirmation(self, analysis_id: int, operator_user_id: int, reason: str) -> Analysis:
+        self._require_staff(operator_user_id)
         analysis = self.analysis_repo.get_by_id(analysis_id)
         if not analysis:
             raise ResourceNotFoundError(f"Analysis #{analysis_id} not found.")
@@ -209,9 +236,12 @@ class AnalysisService:
         description: str | None = None,
         internal_note: str | None = None,
     ) -> AnalysisDamage:
+        self._require_staff(operator_user_id)
         d = self.session.query(AnalysisDamage).filter(AnalysisDamage.id == damage_id).first()
         if not d:
             raise ResourceNotFoundError(f"Damage item #{damage_id} not found.")
+        if d.analysis.status in (AnalysisStatus.FINALIZED.value, AnalysisStatus.SUPERSEDED.value):
+            raise ValidationError("Finalized or superseded assessment findings cannot be changed.")
 
         d.final_damage_class = final_class
         d.severity = severity
@@ -241,12 +271,15 @@ class AnalysisService:
         return d
 
     def finalize_analysis(self, analysis_id: int, operator_user_id: int, notes: str | None = None) -> Analysis:
+        self._require_staff(operator_user_id)
         analysis = self.analysis_repo.get_by_id(analysis_id)
         if not analysis:
             raise ResourceNotFoundError(f"Analysis #{analysis_id} not found.")
 
         if analysis.status == AnalysisStatus.FINALIZED.value:
             raise ValidationError("Analysis is already finalized and immutable.")
+        if analysis.status == AnalysisStatus.SUPERSEDED.value:
+            raise ValidationError("A superseded analysis cannot be finalized.")
 
         # Finalization validation
         for d in analysis.damages:
@@ -269,3 +302,145 @@ class AnalysisService:
         )
 
         return analysis
+
+    def delete_damage_item(self, analysis_id: int, damage_id: int, operator_user_id: int) -> Analysis:
+        self._require_staff(operator_user_id)
+        analysis = self.analysis_repo.get_by_id(analysis_id)
+        if not analysis:
+            raise ResourceNotFoundError(f"Analysis #{analysis_id} not found.")
+        if analysis.status in (AnalysisStatus.FINALIZED.value, AnalysisStatus.SUPERSEDED.value):
+            raise ValidationError("Finalized or superseded assessment findings cannot be deleted.")
+        damage = (
+            self.session.query(AnalysisDamage)
+            .filter(AnalysisDamage.id == damage_id, AnalysisDamage.analysis_id == analysis_id)
+            .first()
+        )
+        if not damage:
+            raise ResourceNotFoundError(f"Damage item #{damage_id} not found.")
+        deleted_class = damage.final_damage_class
+        self.session.delete(damage)
+        self.session.flush()
+
+        remaining = (
+            self.session.query(AnalysisDamage)
+            .filter(
+                AnalysisDamage.analysis_id == analysis_id,
+                AnalysisDamage.review_status.in_(("accepted", "corrected")),
+                AnalysisDamage.passed_vehicle_gate.is_(True),
+            )
+            .all()
+        )
+        subtotal, tax, total = CostingService.calculate_analysis_totals([item.estimated_cost for item in remaining])
+        analysis.accepted_damage_count = len(remaining)
+        analysis.subtotal_cost = subtotal
+        analysis.tax_amount = tax
+        analysis.total_estimated_cost = total
+        self._refresh_annotated_image(analysis, remaining)
+        self.analysis_repo.save_analysis(analysis)
+        self.audit_repo.log_event(
+            action="delete_damage_finding",
+            entity_type="analysis_damage",
+            user_id=operator_user_id,
+            entity_id=damage_id,
+            old_values={"analysis_id": analysis_id, "damage_class": deleted_class},
+        )
+        return analysis
+
+    def reanalyze(
+        self,
+        analysis_id: int,
+        operator_user_id: int,
+        *,
+        damage_confidence: float,
+        vehicle_confidence: float,
+        require_vehicle: bool,
+        reason: str,
+    ) -> Analysis:
+        from database.models.vehicle import VehicleImage
+
+        self._require_staff(operator_user_id)
+        original = self.analysis_repo.get_by_id(analysis_id)
+        if not original:
+            raise ResourceNotFoundError(f"Analysis #{analysis_id} not found.")
+        if original.status == AnalysisStatus.FINALIZED.value:
+            raise ValidationError("Finalized assessments cannot be reanalyzed.")
+        if original.status == AnalysisStatus.SUPERSEDED.value:
+            raise ValidationError("This assessment has already been replaced by a newer analysis.")
+        source = self.session.query(VehicleImage).filter(VehicleImage.id == original.source_image_id).first()
+        if not source:
+            raise ResourceNotFoundError("The original inspection image is unavailable.")
+        source_path = self.storage.get_absolute_path(source.storage_path)
+        if not source_path.is_file():
+            raise ResourceNotFoundError("The original inspection image file is unavailable.")
+
+        replacement = self.run_new_analysis(
+            vehicle_id=original.vehicle_id,
+            source_image_id=original.source_image_id,
+            operator_user_id=operator_user_id,
+            image_bytes=source_path.read_bytes(),
+            damage_confidence=damage_confidence,
+            vehicle_confidence=vehicle_confidence,
+            require_vehicle_confirmation=require_vehicle,
+        )
+        original.status = AnalysisStatus.SUPERSEDED.value
+        self.analysis_repo.save_analysis(original)
+        self.session.add(
+            AnalysisRevision(
+                original_analysis_id=original.id,
+                replacement_analysis_id=replacement.id,
+                reason=reason.strip(),
+                created_by=operator_user_id,
+            )
+        )
+        self.session.flush()
+        self.audit_repo.log_event(
+            action="reanalyze_assessment",
+            entity_type="analysis",
+            user_id=operator_user_id,
+            entity_id=replacement.id,
+            new_values={
+                "replaces_analysis_id": original.id,
+                "damage_confidence": damage_confidence,
+                "vehicle_confidence": vehicle_confidence,
+                "reason": reason,
+            },
+        )
+        return replacement
+
+    def _refresh_annotated_image(self, analysis: Analysis, damages: list[AnalysisDamage]) -> None:
+        from PIL import Image, ImageOps
+        import numpy as np
+        from database.models.vehicle import VehicleImage
+        from ml.annotator import annotate_image
+        from ml.types import DamageDetection, VehicleDetection
+
+        source = self.session.query(VehicleImage).filter(VehicleImage.id == analysis.source_image_id).first()
+        if not source:
+            return
+        source_path = self.storage.get_absolute_path(source.storage_path)
+        if not source_path.is_file():
+            return
+        image_rgb = np.asarray(ImageOps.exif_transpose(Image.open(source_path)).convert("RGB"))
+        vehicles = [
+            VehicleDetection(
+                vehicle_class=item.vehicle_class,
+                confidence=float(item.confidence),
+                box=np.asarray(item.box_json, dtype=float),
+            )
+            for item in analysis.vehicle_detections
+        ]
+        accepted = [
+            DamageDetection(
+                damage_class=item.final_damage_class,
+                confidence=float(item.confidence or 0),
+                box=np.asarray(item.box_json, dtype=float),
+                polygon=np.asarray(item.polygon_json, dtype=float) if item.polygon_json else None,
+                passed_vehicle_gate=True,
+                overlap_ratio=float(item.overlap_ratio or 0),
+            )
+            for item in damages
+        ]
+        analysis.annotated_image_path = self.storage.save_annotated_image(
+            analysis.analysis_number,
+            annotate_image(image_rgb, vehicles, accepted),
+        )

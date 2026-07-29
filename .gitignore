@@ -15,6 +15,9 @@ prepared_dataset.yaml
 /runs/
 *.log
 *.pid
+frontend/node_modules/
+frontend/.next/
+frontend/.next-dev/
 
 # Editor and OS files
 .idea/
@@ -26,5 +29,7 @@ Thumbs.db
 .env
 storage/
 vehicle_analyzis.db
-reports/
+# Python PDF builder source is tracked; generated PDFs live under storage/reports/.
+!reports/
+!reports/*.py
 *.db

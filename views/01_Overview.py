@@ -9,7 +9,7 @@ PROJECT_DIR = Path(__file__).resolve().parent.parent
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from database.connection import get_db_session
+from database.connection import engine, get_db_session
 from services.dashboard_service import DashboardService
 from services.customer_service import CustomerService
 from services.vehicle_service import VehicleService
@@ -19,9 +19,10 @@ from ui.layout import render_page_header, render_status_badge
 
 render_page_header("Executive & Operational Overview", "Role-based summary dashboard and quick actions", "OVERVIEW", allowed_roles=["admin", "operator", "customer"])
 
-role_code = (st.session_state.get("role_code") or "admin").lower()
+role_code = st.session_state["role_code"]
 
 if role_code == "admin":
+    database_label = "MySQL / PyMySQL" if engine.url.get_backend_name() == "mysql" else "Local SQLite fallback"
     with get_db_session() as session:
         dash_service = DashboardService(session)
         metrics = dash_service.get_admin_metrics()
@@ -49,12 +50,12 @@ if role_code == "admin":
     with col_right:
         st.markdown("### System Diagnostics & Status")
         st.markdown(
-            """
+            f"""
             <div class="erp-card">
               <div class="erp-card-header">Model & Storage Diagnostics</div>
               <p><b>Damage Segmentation Model:</b> <code>best.pt</code> (SHA256 Verified)</p>
               <p><b>Vehicle Confirmation Model:</b> <code>yolov8n.pt</code> (COCO Verified)</p>
-              <p><b>Database Connection:</b> <code>Vehicle_Analyzis</code> (MySQL / PyMySQL)</p>
+              <p><b>Database Connection:</b> <code>Vehicle_Analyzis</code> ({database_label})</p>
               <p><b>Storage System:</b> <code>storage/</code></p>
             </div>
             """,
@@ -116,7 +117,10 @@ elif role_code == "operator":
             )
 
 else:
-    customer_id = st.session_state.get("customer_id") or 1
+    customer_id = st.session_state.get("customer_id")
+    if not customer_id:
+        st.error("Your portal account is not linked to a customer record.")
+        st.stop()
 
     with get_db_session() as session:
         dash_service = DashboardService(session)
@@ -125,11 +129,12 @@ else:
 
         metrics = dash_service.get_customer_portal_metrics(customer_id)
         vehicles = veh_service.list_vehicles_by_customer(customer_id)
+        customer_reports = rep_service.list_for_customer(customer_id)
 
         vehicles_data = []
         for v in vehicles:
             reports = [
-                r for r in rep_service.list_all()
+                r for r in customer_reports
                 if r.analysis.vehicle_id == v.id and r.is_current
             ]
             reports_data = []

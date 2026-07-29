@@ -16,14 +16,27 @@ from ui.layout import render_page_header
 
 render_page_header("Official Damage Reports Archive", "View, filter, and download finalized PDF vehicle damage inspection reports", "REPORTS", allowed_roles=["admin", "operator", "customer"])
 
+role_code = st.session_state.get("role_code")
+customer_id = st.session_state.get("customer_id")
+
 with get_db_session() as session:
     from database.models.report import Report as ReportModel
     from database.models.analysis import Analysis as AnalysisModel
     from database.models.vehicle import Vehicle as VehicleModel
     r_service = ReportService(session)
-    reports_orm = session.query(ReportModel).options(
+    reports_orm = session.query(ReportModel).join(
+        ReportModel.analysis
+    ).join(
+        AnalysisModel.vehicle
+    ).options(
         joinedload(ReportModel.analysis).joinedload(AnalysisModel.vehicle).joinedload(VehicleModel.customer)
-    ).all()
+    )
+    if role_code == "customer":
+        if not customer_id:
+            st.error("Your portal account is not linked to a customer record.")
+            st.stop()
+        reports_orm = reports_orm.filter(VehicleModel.customer_id == customer_id)
+    reports_orm = reports_orm.all()
 
     reports_dicts = []
     for r in reports_orm:

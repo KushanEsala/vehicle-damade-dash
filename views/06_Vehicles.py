@@ -17,7 +17,10 @@ from ui.layout import render_page_header
 
 render_page_header("Insured Vehicle Register", "Register vehicles, upload inspection images, and assign policy plans", "VEHICLES", allowed_roles=["admin", "operator"])
 
-operator_id = st.session_state.get("user_id") or 1
+operator_id = st.session_state.get("user_id")
+if not operator_id:
+    st.error("A valid signed-in operator is required.")
+    st.stop()
 
 tab_list, tab_register, tab_upload = st.tabs(["Vehicle Directory", "Register New Vehicle", "Upload Inspection Image"])
 

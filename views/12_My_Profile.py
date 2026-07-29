@@ -14,14 +14,17 @@ from ui.layout import render_page_header
 
 render_page_header("My Account Profile", "View your credentials and update your password", "USER PROFILE", allowed_roles=["admin", "operator", "customer"])
 
-user_id = st.session_state.get("user_id") or 1
-role = st.session_state.get("role_code") or "admin"
+user_id = st.session_state.get("user_id")
+role = st.session_state.get("role_code")
+if not user_id or not role:
+    st.error("A valid signed-in account is required.")
+    st.stop()
 
 st.markdown(
     f"""
     <div class="erp-card">
-      <p><b>Username:</b> <code>{st.session_state.get('username') or 'admin'}</code></p>
-      <p><b>Email:</b> {st.session_state.get('user_email') or 'admin@apexinsurance.lk'}</p>
+      <p><b>Username:</b> <code>{st.session_state.get('username')}</code></p>
+      <p><b>Email:</b> {st.session_state.get('user_email')}</p>
       <p><b>Assigned Role:</b> <span class="badge badge-verified">{role.upper()}</span></p>
     </div>
     """,

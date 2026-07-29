@@ -15,7 +15,10 @@ from ui.layout import render_page_header
 
 render_page_header("Company Profile & Report Settings", "Update official company details, currency, tax rates, and PDF report footer text", "ADMINISTRATION", allowed_roles=["admin"])
 
-admin_id = st.session_state.get("user_id") or 1
+admin_id = st.session_state.get("user_id")
+if not admin_id:
+    st.error("A valid signed-in administrator is required.")
+    st.stop()
 
 with get_db_session() as session:
     company = session.query(CompanyInformation).first()

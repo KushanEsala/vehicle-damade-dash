@@ -42,3 +42,16 @@ class User(Base):
 
     role: Mapped[Role] = relationship("Role", back_populates="users")
     customer: Mapped[Customer | None] = relationship("Customer", foreign_keys=[customer_id], back_populates="user_account")
+
+
+class AppSession(Base):
+    __tablename__ = "app_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    user_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    last_activity_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
+
+    user: Mapped[User] = relationship("User")

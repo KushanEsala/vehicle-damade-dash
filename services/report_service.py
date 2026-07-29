@@ -32,6 +32,38 @@ class ReportService:
     def list_all(self) -> list[Report]:
         return self.report_repo.list_all()
 
+    def list_for_customer(self, customer_id: int) -> list[Report]:
+        """Return only reports owned by a customer through the report's vehicle."""
+        from database.models.analysis import Analysis
+        from database.models.vehicle import Vehicle
+
+        return (
+            self.session.query(Report)
+            .join(Report.analysis)
+            .join(Analysis.vehicle)
+            .filter(Vehicle.customer_id == customer_id)
+            .order_by(Report.generated_at.desc())
+            .all()
+        )
+
+    def get_authorized_report(
+        self,
+        report_id: int,
+        *,
+        role_code: str,
+        customer_id: int | None = None,
+    ) -> Report:
+        report = self.report_repo.get_by_id(report_id)
+        if not report:
+            raise ResourceNotFoundError(f"Report #{report_id} not found.")
+        if role_code == "customer":
+            owner_id = report.analysis.vehicle.customer_id
+            if customer_id is None or owner_id != customer_id:
+                raise ResourceNotFoundError(f"Report #{report_id} not found.")
+        elif role_code not in {"admin", "operator"}:
+            raise ResourceNotFoundError(f"Report #{report_id} not found.")
+        return report
+
     def build_snapshot(self, analysis_id: int) -> dict[str, Any]:
         analysis = self.analysis_repo.get_by_id(analysis_id)
         if not analysis:
@@ -110,11 +142,10 @@ class ReportService:
         report_num = self.generate_report_number(analysis.analysis_number, revision)
         snapshot = self.build_snapshot(analysis_id)
         snapshot["report_number"] = report_num
+        snapshot["layout_version"] = 2
 
         # Render PDF to memory
-        pdf_stream = io.BytesIO()
-        PDFReportBuilder.build_report_pdf(snapshot, pdf_stream)
-        pdf_bytes = pdf_stream.getvalue()
+        pdf_bytes = self._render_pdf(snapshot, analysis)
         sha256 = hashlib.sha256(pdf_bytes).hexdigest()
 
         # Save to disk
@@ -149,3 +180,29 @@ class ReportService:
         )
 
         return report
+
+    def ensure_current_pdf_layout(self, report: Report) -> Report:
+        """Upgrade older generated PDFs to the current visual report layout."""
+        snapshot = dict(report.snapshot_json or {})
+        if int(snapshot.get("layout_version", 1)) >= 2:
+            return report
+        snapshot["layout_version"] = 2
+        snapshot["report_number"] = report.report_number
+        pdf_bytes = self._render_pdf(snapshot, report.analysis)
+        path = self.storage.get_absolute_path(report.pdf_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(pdf_bytes)
+        report.sha256 = hashlib.sha256(pdf_bytes).hexdigest()
+        report.snapshot_json = snapshot
+        self.report_repo.save(report)
+        return report
+
+    def _render_pdf(self, snapshot: dict[str, Any], analysis: Any) -> bytes:
+        render_snapshot = dict(snapshot)
+        if analysis.annotated_image_path:
+            image_path = self.storage.get_absolute_path(analysis.annotated_image_path)
+            if image_path.is_file():
+                render_snapshot["_annotated_image_path"] = str(image_path)
+        pdf_stream = io.BytesIO()
+        PDFReportBuilder.build_report_pdf(render_snapshot, pdf_stream)
+        return pdf_stream.getvalue()

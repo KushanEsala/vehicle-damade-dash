@@ -18,7 +18,10 @@ render_page_header("New AI Damage Inspection", "Execute YOLO vehicle confirmatio
 
 render_evidence_rail(current_step=3)
 
-operator_id = st.session_state.get("user_id") or 1
+operator_id = st.session_state.get("user_id")
+if not operator_id:
+    st.error("A valid signed-in operator is required.")
+    st.stop()
 
 with get_db_session() as session:
     c_service = CustomerService(session)

@@ -15,15 +15,33 @@ from services.analysis_service import AnalysisService
 from services.report_service import ReportService
 from ui.layout import render_page_header, render_evidence_rail
 
-render_page_header("Analysis Review & Costing Workspace", "Review AI predictions, override close-up checks, edit repair costs, and finalize case report", "ANALYSIS WORKSPACE", allowed_roles=["admin", "operator"])
+role_code = st.session_state.get("role_code")
+is_customer = role_code == "customer"
+render_page_header(
+    "My Damage Assessments" if is_customer else "Analysis Review & Costing Workspace",
+    "Review finalized vehicle findings and reports." if is_customer else "Review AI predictions, edit repair costs, and finalize the assessment.",
+    "POLICYHOLDER PORTAL" if is_customer else "ANALYSIS WORKSPACE",
+    allowed_roles=["admin", "operator", "customer"],
+)
 
 render_evidence_rail(current_step=4)
 
-operator_id = st.session_state.get("user_id") or 1
+operator_id = st.session_state.get("user_id")
+if not operator_id:
+    st.error("A valid signed-in user is required.")
+    st.stop()
 
 with get_db_session() as session:
     a_service = AnalysisService(session)
     analyses_orm = a_service.analysis_repo.list_all()
+    if is_customer:
+        customer_id = st.session_state.get("customer_id")
+        analyses_orm = [
+            analysis for analysis in analyses_orm
+            if analysis.status == "finalized"
+            and analysis.vehicle
+            and analysis.vehicle.customer_id == customer_id
+        ]
     analyses_dicts = []
     for a in analyses_orm:
         analyses_dicts.append({
@@ -61,6 +79,16 @@ else:
             joinedload(AnalysisModel.vehicle).joinedload(VehicleModel.images),
             joinedload(AnalysisModel.damages)
         ).filter_by(id=selected_analysis_dict["id"]).first()
+        if not analysis:
+            st.error("The selected assessment no longer exists.")
+            st.stop()
+        if is_customer and (
+            not analysis.vehicle
+            or analysis.vehicle.customer_id != st.session_state.get("customer_id")
+            or analysis.status != "finalized"
+        ):
+            st.error("You do not have permission to view this assessment.")
+            st.stop()
 
         col_img1, col_img2 = st.columns(2)
         with col_img1:
@@ -91,7 +119,7 @@ else:
                 st.error("Vehicle Confirmation Gate: FAILED (No vehicle detected by model gate)")
 
         with c_gate2:
-            if not analysis.vehicle_confirmed and not analysis.confirmation_overridden and analysis.status != "finalized":
+            if not is_customer and not analysis.vehicle_confirmed and not analysis.confirmation_overridden and analysis.status != "finalized":
                 with st.popover("Override Vehicle Gate"):
                     reason = st.text_input("Mandatory Override Reason", placeholder="Close-up panel crop of door damage")
                     if st.button("Confirm Operator Override"):
@@ -113,7 +141,7 @@ else:
         else:
             for d in accepted_damages:
                 with st.expander(f"Damage #{d.id}: {d.final_damage_class.replace('_', ' ').title()} — Cost: {analysis.currency_code} {d.estimated_cost:,.2f}", expanded=True):
-                    if analysis.status == "finalized":
+                    if is_customer or analysis.status == "finalized":
                         st.write(f"**Part:** {d.vehicle_part or 'General Panel'} | **Severity:** {d.severity.capitalize()} | **Cost:** {analysis.currency_code} {d.estimated_cost:,.2f}")
                         st.write(f"**Description:** {d.description or 'N/A'}")
                     else:
@@ -155,7 +183,7 @@ else:
         t2.metric("Tax Amount (VAT 15%)", f"{analysis.currency_code} {analysis.tax_amount:,.2f}")
         t3.metric("Total Estimated Cost", f"{analysis.currency_code} {analysis.total_estimated_cost:,.2f}")
 
-        if analysis.status != "finalized":
+        if not is_customer and analysis.status != "finalized":
             st.divider()
             st.markdown("### Finalize Assessment & Build PDF Report")
             final_notes = st.text_area("Operator Final Notes", value=analysis.operator_notes or "")
@@ -171,7 +199,7 @@ else:
                     st.rerun()
                 except Exception as e:
                     st.error(str(e))
-        else:
+        elif analysis.status == "finalized":
             st.success("This analysis is FINALIZED and locked against modification.")
             r_service = ReportService(session)
             report = r_service.report_repo.get_by_analysis_id(analysis.id)
@@ -186,3 +214,5 @@ else:
                         type="primary",
                         use_container_width=True,
                     )
+        else:
+            st.info("This assessment is still being reviewed and is not yet available in the customer portal.")

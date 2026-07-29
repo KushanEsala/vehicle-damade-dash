@@ -28,6 +28,8 @@ def init_session_state() -> None:
         st.session_state.auth_timestamp = None
     if "last_activity" not in st.session_state:
         st.session_state.last_activity = None
+    if "dark_mode" not in st.session_state:
+        st.session_state.dark_mode = True
 
 
 def check_session_timeout() -> bool:
@@ -72,15 +74,8 @@ def login_user(
 
 def logout_user() -> None:
     """Clears all authentication state."""
-    st.session_state.authenticated = False
-    st.session_state.user_id = None
-    st.session_state.username = None
-    st.session_state.user_email = None
-    st.session_state.role_code = None
-    st.session_state.customer_id = None
-    st.session_state.must_change_password = False
-    st.session_state.auth_timestamp = None
-    st.session_state.last_activity = None
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
 
 
 def get_current_user_id() -> int | None:

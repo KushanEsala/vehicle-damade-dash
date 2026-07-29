@@ -23,6 +23,11 @@ try:
         pass
     logger.info("Connected to MySQL database '%s' successfully.", settings.MYSQL_DATABASE)
 except Exception as e:
+    if settings.APP_ENV.lower() == "production":
+        raise RuntimeError(
+            f"Production database connection failed for {settings.MYSQL_DATABASE}. "
+            "SQLite fallback is disabled in production."
+        ) from e
     logger.warning(
         "Could not connect to MySQL at %s:%s/%s (%s). Falling back to local SQLite database 'vehicle_analyzis.db'.",
         settings.MYSQL_HOST, settings.MYSQL_PORT, settings.MYSQL_DATABASE, e,
@@ -44,6 +49,10 @@ SessionLocal = sessionmaker(
 
 def init_db() -> None:
     """Creates all database tables defined in ORM models."""
+    # Import the model package before create_all so every table, including API
+    # sessions, is registered with SQLAlchemy metadata.
+    import database.models  # noqa: F401
+
     Base.metadata.create_all(bind=engine)
 
 

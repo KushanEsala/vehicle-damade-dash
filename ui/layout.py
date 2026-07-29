@@ -2,50 +2,43 @@ from __future__ import annotations
 
 import streamlit as st
 from ui.theme import inject_custom_theme
-from core.session import is_authenticated, logout_user, get_current_role
+from core.session import check_session_timeout, is_authenticated, logout_user, get_current_role
 
 
 def apply_role_sidebar_filtering() -> None:
-    """Injects CSS rules to hide unauthorized page links from the Streamlit sidebar based on user role."""
+    """Compatibility no-op; navigation is now constructed server-side by role."""
+    return
+
+
+def render_sidebar_identity() -> None:
     if not is_authenticated():
         return
-
-    role = (get_current_role() or "admin").lower()
-
-    hidden_selectors = []
-    if role == "operator":
-        # Operator cannot access admin management / system diagnostic pages
-        hidden_selectors = [
-            'a[href*="User_Management"]',
-            'a[href*="Company_Settings"]',
-            'a[href*="Audit_Logs"]',
-            'a[href*="Model_Tester"]',
-        ]
-    elif role == "customer":
-        # Customer can only access Overview, Damage Reports, and My Profile
-        hidden_selectors = [
-            'a[href*="New_Analysis"]',
-            'a[href*="Analysis_Review"]',
-            'a[href*="Customers"]',
-            'a[href*="Vehicles"]',
-            'a[href*="Insurance_Plans"]',
-            'a[href*="User_Management"]',
-            'a[href*="Company_Settings"]',
-            'a[href*="Audit_Logs"]',
-            'a[href*="Model_Tester"]',
-        ]
-
-    if hidden_selectors:
-        css_rules = ", ".join([f'[data-testid="stSidebarNav"] {sel}' for sel in hidden_selectors])
+    with st.sidebar:
         st.markdown(
-            f"""
-            <style>
-              {css_rules} {{
-                display: none !important;
-              }}
-            </style>
+            """
+            <div class="brand-lockup">
+              <div class="brand-mark"><span class="material-symbols-rounded">shield</span></div>
+              <div>
+                <div class="brand-name">APEX ASSURANCE</div>
+                <div class="brand-subtitle">Claims intelligence</div>
+              </div>
+            </div>
             """,
             unsafe_allow_html=True,
+        )
+        st.markdown(
+            """
+            <div class="appearance-label">
+              <span class="material-symbols-rounded">contrast</span>
+              <span>Appearance</span>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.toggle(
+            "Dark mode",
+            key="dark_mode",
+            help="Switch between dark and light application themes.",
         )
 
 
@@ -58,22 +51,24 @@ def render_sidebar_footer() -> None:
     role_code = st.session_state.get("role_code", "USER").upper()
 
     with st.sidebar:
-        st.markdown("---")
         st.markdown(
             f"""
-            <div style="padding: 0.5rem 0; margin-bottom: 0.5rem;">
-              <div style="font-weight: 700; font-size: 0.95rem; color: #E9F0F5;">
+            <div class="sidebar-account">
+              <div class="sidebar-account-icon"><span class="material-symbols-rounded">account_circle</span></div>
+              <div>
+              <div class="sidebar-account-name">
                 {username}
               </div>
-              <div style="font-size: 0.78rem; color: #50DBB7; font-weight: 700; letter-spacing: 0.05em;">
-                {role_code} ACCOUNT
+              <div class="sidebar-account-role">
+                {role_code}
+              </div>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-        if st.button("Logout", key="sidebar_logout_btn", use_container_width=True):
+        if st.button("Sign out", key="sidebar_logout_btn", icon=":material/logout:", use_container_width=True):
             logout_user()
             st.rerun()
 
@@ -93,22 +88,25 @@ def ensure_page_initialized(
     from core.session import init_session_state
     from ui.login_view import render_login_page
 
-    ensure_database_ready()
-    inject_custom_theme()
     init_session_state()
+    inject_custom_theme()
+    ensure_database_ready()
 
     if require_auth and not is_authenticated():
         render_login_page()
 
-    current_role = (get_current_role() or "admin").lower()
-    if allowed_roles and current_role not in allowed_roles:
-        st.error(f"Access Denied: Your account role '{current_role.upper()}' does not have permission to access this section.")
-        st.info("Use the sidebar menu to navigate to your permitted pages.")
-        render_sidebar_footer()
+    if require_auth and (not is_authenticated() or check_session_timeout()):
+        render_login_page()
         st.stop()
 
-    apply_role_sidebar_filtering()
-    render_sidebar_footer()
+    current_role = get_current_role()
+    if allowed_roles and current_role not in allowed_roles:
+        st.error("You do not have permission to access this page.")
+        st.stop()
+
+    if current_role == "customer" and not st.session_state.get("customer_id"):
+        st.error("Your account is not linked to a policyholder record.")
+        st.stop()
 
 
 def render_page_header(
@@ -118,18 +116,18 @@ def render_page_header(
     require_auth: bool = True,
     allowed_roles: list[str] | None = None,
 ) -> None:
-    """Renders standardized page header with dark automotive aesthetic."""
+    """Renders the standardized Apex insurance workspace header."""
     ensure_page_initialized(title, require_auth=require_auth, allowed_roles=allowed_roles)
     st.markdown(
         f"""
         <div style="margin-bottom: 1.5rem;">
-          <div style="color: #50DBB7; font-size: 0.75rem; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 0.25rem;">
+          <div style="color: #0F766E; font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 0.35rem;">
             {category}
           </div>
-          <h1 style="font-size: 2.2rem; font-weight: 700; color: #E9F0F5; margin: 0; line-height: 1.15;">
+          <h1 style="font-size: 2.15rem; font-weight: 800; color: #102A43; margin: 0; line-height: 1.15;">
             {title}
           </h1>
-          {f'<p style="color: #91A1AE; font-size: 1rem; margin-top: 0.35rem; margin-bottom: 0;">{subtitle}</p>' if subtitle else ''}
+          {f'<p style="color: #637381; font-size: .96rem; margin-top: .4rem; margin-bottom: 0;">{subtitle}</p>' if subtitle else ''}
         </div>
         """,
         unsafe_allow_html=True,

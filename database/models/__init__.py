@@ -1,4 +1,4 @@
-from database.models.user import Role, User
+from database.models.user import AppSession, Role, User
 from database.models.customer import Customer
 from database.models.vehicle import Vehicle, VehicleImage
 from database.models.plan import InsurancePlan, VehiclePolicy
@@ -10,6 +10,7 @@ from database.models.audit import AuditLog
 __all__ = [
     "Role",
     "User",
+    "AppSession",
     "Customer",
     "Vehicle",
     "VehicleImage",

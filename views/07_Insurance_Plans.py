@@ -15,7 +15,8 @@ from ui.layout import render_page_header
 
 render_page_header("Insurance Policy Plans", "Configure insurance coverage plans, deductible amounts, and policy limits", "ADMINISTRATION", allowed_roles=["admin", "operator"])
 
-admin_id = st.session_state.get("user_id") or 1
+role_code = st.session_state.get("role_code")
+admin_id = st.session_state.get("user_id")
 
 tab_list, tab_create = st.tabs(["Active Insurance Plans", "Create New Plan"])
 
@@ -40,6 +41,9 @@ with tab_list:
             st.dataframe(pd.DataFrame(table_data), use_container_width=True, hide_index=True)
 
 with tab_create:
+    if role_code != "admin":
+        st.info("Insurance plan configuration is restricted to administrators. Operators have view-only access.")
+        st.stop()
     with st.form("create_plan_form"):
         code = st.text_input("Plan Code *", placeholder="PLN-SILVER-AUTO")
         name = st.text_input("Plan Name *", placeholder="Silver Third Party & Collision Shield")

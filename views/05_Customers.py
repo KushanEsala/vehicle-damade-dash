@@ -15,7 +15,10 @@ from ui.layout import render_page_header
 
 render_page_header("Customer Policyholder Register", "Search, register, and maintain policyholder files", "CUSTOMERS", allowed_roles=["admin", "operator"])
 
-operator_id = st.session_state.get("user_id") or 1
+operator_id = st.session_state.get("user_id")
+if not operator_id:
+    st.error("A valid signed-in operator is required.")
+    st.stop()
 
 tab_list, tab_create = st.tabs(["Customer Directory", "Register New Customer"])
 
