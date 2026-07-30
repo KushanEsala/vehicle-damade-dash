@@ -1,7 +1,7 @@
 "use client";
 
 import {FormEvent, useEffect, useState} from "react";
-import {Power, PowerOff, Trash2, UserPlus} from "lucide-react";
+import {KeyRound, Power, PowerOff, Trash2, UserPlus} from "lucide-react";
 import {api, User} from "@/lib/api";
 import {Heading} from "@/components/PageParts";
 
@@ -23,6 +23,7 @@ export default function Users() {
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
+    setMessage("");
     const values = Object.fromEntries(new FormData(event.currentTarget));
     try {
       const result = await api<{temporary_password: string}>("/api/users", {
@@ -33,6 +34,23 @@ export default function Users() {
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to create account.");
+    }
+  }
+
+  async function generatePassword(account: Account) {
+    if (!window.confirm(`Generate new temporary password for "${account.username}"?`)) return;
+    setBusyId(account.id);
+    setError("");
+    setMessage("");
+    try {
+      const result = await api<{temporary_password: string}>(`/api/users/${account.id}/reset-password`, {
+        method: "POST",
+      });
+      setMessage(`New temporary password for ${account.username}: ${result.temporary_password}`);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Unable to generate password.");
+    } finally {
+      setBusyId(null);
     }
   }
 
@@ -69,7 +87,7 @@ export default function Users() {
   return <><Heading eyebrow="ADMINISTRATION" title="User management"
     description="Create staff accounts and control access for registered users."/>
     <section className="panel"><div className="sectionHeading"><UserPlus/><div><h2>Create staff account</h2>
-      <p>Customer portal accounts are created from Customer registration.</p></div></div>
+      <p>Customer portal accounts are created automatically from Customer registration.</p></div></div>
       <form className="formGrid" onSubmit={createAccount}>
         <label>Username<input name="username" required/></label>
         <label>Email<input name="email" type="email" required/></label>
@@ -88,6 +106,9 @@ export default function Users() {
         <td>{account.email}</td><td><span className="status">{account.role}</span></td>
         <td><span className={`status ${account.is_active ? "ok" : ""}`}>{account.is_active ? "Active" : "Deactivated"}</span></td>
         <td><div className="rowActions">
+          <button className="secondary" disabled={busyId === account.id} onClick={() => generatePassword(account)}>
+            <KeyRound/>Generate password
+          </button>
           <button className="secondary" disabled={isSelf || busyId === account.id} onClick={() => changeStatus(account)}>
             {account.is_active ? <PowerOff/> : <Power/>}{account.is_active ? "Deactivate" : "Activate"}
           </button>

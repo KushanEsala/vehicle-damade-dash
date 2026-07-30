@@ -731,3 +731,14 @@ def delete_user(
 ):
     UserService(db).delete_user(user_id, admin.id)
     return Response(status_code=204)
+
+
+@app.post("/api/users/{user_id}/reset-password")
+def reset_user_password(
+    user_id: int,
+    admin: User = Depends(require_roles("admin")),
+    db: Session = Depends(db_dependency),
+):
+    temp_password = AuthenticationService(db).reset_password(admin.id, user_id)
+    return {"id": user_id, "temporary_password": temp_password}
+
