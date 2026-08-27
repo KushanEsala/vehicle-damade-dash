@@ -8,8 +8,8 @@ export default function Customers() {
   const [rows,setRows]=useState<Customer[]>([]); const [message,setMessage]=useState("");
   const load=()=>api<Customer[]>("/api/customers").then(setRows).catch(e=>setMessage(e.message));
   useEffect(()=>{void load()},[]);
-  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault(); const fd=new FormData(e.currentTarget);
-    try { const r=await api<{username:string;temporary_password:string}>("/api/customers",{method:"POST",body:JSON.stringify(Object.fromEntries(fd))}); setMessage(`Customer saved. Username: ${r.username} · Temporary password: ${r.temporary_password}`); e.currentTarget.reset(); load(); } catch(err){setMessage(err instanceof Error?err.message:"Unable to save customer.");}}
+  async function submit(e:FormEvent<HTMLFormElement>){e.preventDefault(); const form=e.currentTarget; const fd=new FormData(form);
+    try { const r=await api<{username:string;temporary_password:string}>("/api/customers",{method:"POST",body:JSON.stringify(Object.fromEntries(fd))}); setMessage(`Customer saved. Username: ${r.username} · Temporary password: ${r.temporary_password}`); form.reset(); load(); } catch(err){setMessage(err instanceof Error?err.message:"Unable to save customer.");}}
   return <><Heading eyebrow="CUSTOMERS" title="Customer records" description="Register policyholders and issue their portal access."/>
     <section className="panel"><h2>Register customer</h2><form className="formGrid" onSubmit={submit}>
       <label>Full name<input name="full_name" required/></label><label>Email<input name="email" type="email" required/></label>

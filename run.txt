@@ -1,2 +1,19 @@
 .venv\Scripts\activate.bat
 python -m streamlit run model_tester.py --server.port 8502
+
+
+
+NEW>>>
+
+.\start_web_app.ps1
+
+http://localhost:3000
+
+
+cd "D:\FinalProject 2026\vehicle_damade_dash_cloned"
+.\.venv\Scripts\python.exe -m uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload
+
+cd "D:\FinalProject 2026\vehicle_damade_dash_cloned\frontend"
+npm run dev
+
+http://localhost:3000

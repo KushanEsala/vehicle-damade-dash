@@ -11,7 +11,7 @@ from database.base import Base
 class InsurancePlan(Base):
     __tablename__ = "insurance_plans"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     plan_code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     name: Mapped[str] = mapped_column(String(120), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
@@ -31,7 +31,7 @@ class InsurancePlan(Base):
 class VehiclePolicy(Base):
     __tablename__ = "vehicle_policies"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("vehicles.id"), nullable=False, index=True)
     plan_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("insurance_plans.id"), nullable=False, index=True)
     policy_number: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)

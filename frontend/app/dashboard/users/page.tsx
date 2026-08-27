@@ -34,9 +34,10 @@ export default function Users() {
 
   async function createAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const form = event.currentTarget;
     setError("");
     setMessage("");
-    const values = Object.fromEntries(new FormData(event.currentTarget));
+    const values = Object.fromEntries(new FormData(form));
     try {
       const result = await api<{temporary_password: string}>("/api/users", {
         method: "POST", body: JSON.stringify(values),
@@ -44,7 +45,7 @@ export default function Users() {
       const username = String(values.username || "Account");
       setMessage(`Account created. Temporary password: ${result.temporary_password}`);
       setPassModal({username, password: result.temporary_password});
-      event.currentTarget.reset();
+      form.reset();
       await load();
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Unable to create account.");

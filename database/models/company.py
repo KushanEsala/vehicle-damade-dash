@@ -11,7 +11,7 @@ from database.base import Base
 class CompanyInformation(Base):
     __tablename__ = "company_information"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     company_name: Mapped[str] = mapped_column(String(200), default="Apex Vehicle Assurance Services", nullable=False)
     registration_number: Mapped[str] = mapped_column(String(100), default="PV-10029384", nullable=False)
     address_line_1: Mapped[str] = mapped_column(String(255), default="100 Commercial Drive", nullable=False)

@@ -10,7 +10,7 @@ from database.base import Base
 class Vehicle(Base):
     __tablename__ = "vehicles"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     customer_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("customers.id"), nullable=False, index=True)
     vehicle_code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     registration_number: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
@@ -40,7 +40,7 @@ class Vehicle(Base):
 class VehicleImage(Base):
     __tablename__ = "vehicle_images"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("vehicles.id"), nullable=False, index=True)
     analysis_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("analyses.id"), nullable=True)
     image_category: Mapped[str] = mapped_column(String(40), default="profile", nullable=False)

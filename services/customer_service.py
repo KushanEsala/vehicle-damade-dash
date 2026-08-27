@@ -43,6 +43,21 @@ class CustomerService:
         if not full_name.strip() or not phone_primary.strip() or not email or not address_line_1.strip() or not city.strip():
             raise ValidationError("Full name, primary phone, email, address, and city are required.")
 
+        existing_email = self.session.query(Customer).filter(Customer.email == email).first()
+        if existing_email:
+            raise DuplicateResourceError(f"A customer with email '{email}' already exists.")
+
+        nic_val = nic_or_passport.strip() if nic_or_passport else None
+        if nic_val:
+            existing_nic = self.session.query(Customer).filter(Customer.nic_or_passport == nic_val).first()
+            if existing_nic:
+                raise DuplicateResourceError(f"A customer with NIC/Passport '{nic_val}' already exists.")
+
+        if create_user_account:
+            existing_user = self.user_repo.get_by_username_or_email(email)
+            if existing_user:
+                raise DuplicateResourceError(f"A user account with email '{email}' already exists.")
+
         code = self.generate_customer_code()
 
         customer = Customer(

@@ -11,7 +11,7 @@ from database.base import Base
 class Report(Base):
     __tablename__ = "reports"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     report_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False, index=True)
     analysis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("analyses.id"), nullable=False, index=True)
     revision_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)

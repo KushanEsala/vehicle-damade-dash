@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     MYSQL_HOST: str = Field(default="127.0.0.1")
     MYSQL_PORT: int = Field(default=3306)
     MYSQL_DATABASE: str = Field(default="Vehicle_Analyzis")
-    MYSQL_USER: str = Field(default="vehicle_erp_app")
-    MYSQL_PASSWORD: str = Field(default="vehicle_erp_secret")
+    MYSQL_USER: str = Field(default="root")
+    MYSQL_PASSWORD: str = Field(default="")
 
     STORAGE_ROOT: str = Field(default="storage")
     DAMAGE_MODEL_PATH: str = Field(default="Runscomplete/runs/vehicle_damage_seg-2/weights/best.pt")

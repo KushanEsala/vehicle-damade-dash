@@ -8,6 +8,8 @@ __pycache__/
 data/
 yolo_dataset/
 datasets/
+dataset/
+Datasets/
 prepared_dataset.yaml
 *.zip
 
@@ -24,6 +26,8 @@ frontend/.next-dev/
 .vscode/
 .DS_Store
 Thumbs.db
+~$*
+~$*.docx
 
 # Secrets & Local database / storage
 .env
@@ -36,3 +40,4 @@ vehicle_analyzis.db
 *.db-journal
 *.db-shm
 *.db-wal
+

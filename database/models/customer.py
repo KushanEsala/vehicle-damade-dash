@@ -10,7 +10,7 @@ from database.base import Base
 class Customer(Base):
     __tablename__ = "customers"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     customer_code: Mapped[str] = mapped_column(String(30), unique=True, nullable=False, index=True)
     full_name: Mapped[str] = mapped_column(String(150), nullable=False)
     nic_or_passport: Mapped[str | None] = mapped_column(String(60), unique=True, nullable=True, index=True)

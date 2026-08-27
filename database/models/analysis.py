@@ -12,7 +12,7 @@ from database.base import Base
 class ModelVersion(Base):
     __tablename__ = "model_versions"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     model_key: Mapped[str] = mapped_column(String(80), unique=True, nullable=False, index=True)
     display_name: Mapped[str] = mapped_column(String(120), nullable=False)
     model_type: Mapped[str] = mapped_column(String(40), nullable=False)
@@ -28,7 +28,7 @@ class ModelVersion(Base):
 class Analysis(Base):
     __tablename__ = "analyses"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     analysis_number: Mapped[str] = mapped_column(String(40), unique=True, nullable=False, index=True)
     vehicle_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("vehicles.id"), nullable=False, index=True)
     operator_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id"), nullable=False, index=True)
@@ -73,7 +73,7 @@ class Analysis(Base):
 class AnalysisVehicleDetection(Base):
     __tablename__ = "analysis_vehicle_detections"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     analysis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("analyses.id"), nullable=False, index=True)
     vehicle_class: Mapped[str] = mapped_column(String(60), nullable=False)
     confidence: Mapped[Decimal] = mapped_column(SQLDecimal(7, 6), nullable=False)
@@ -86,7 +86,7 @@ class AnalysisVehicleDetection(Base):
 class AnalysisDamage(Base):
     __tablename__ = "analysis_damages"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     analysis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("analyses.id"), nullable=False, index=True)
     source: Mapped[str] = mapped_column(String(20), default="model", nullable=False)
     original_damage_class: Mapped[str | None] = mapped_column(String(80), nullable=True)
@@ -117,7 +117,7 @@ class AnalysisDamage(Base):
 class AnalysisRevision(Base):
     __tablename__ = "analysis_revisions"
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     original_analysis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("analyses.id"), nullable=False, index=True)
     replacement_analysis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("analyses.id"), nullable=False, index=True)
     reason: Mapped[str] = mapped_column(Text, nullable=False)
